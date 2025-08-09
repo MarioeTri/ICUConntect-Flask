@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card shadow-lg p-4 mx-auto" style="max-width: 400px;">
+    <h3 class="text-center mb-4">Registrasi Perawat</h3>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" name="username" id="username" class="form-control" placeholder="Masukkan username" required>
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" name="password" id="password" class="form-control" placeholder="Masukkan password" required>
+        </div>
+        <div class="mb-3">
+            <label for="confirm_password" class="form-label">Konfirmasi Password</label>
+            <input type="password" name="confirm_password" id="confirm_password" class="form-control" placeholder="Konfirmasi password" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Daftar</button>
+    </form>
+    <p class="text-center mt-3">Sudah punya akun? <a href="{{ url_for('login') }}">Login di sini</a></p>
+</div>
+{% endblock %}

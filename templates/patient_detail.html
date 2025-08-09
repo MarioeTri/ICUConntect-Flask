@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card shadow-lg p-4 nurse-view">
+    <h3 class="mb-4">Manajemen Pasien: {{ patient[1] }} (Perawat)</h3>
+    <div class="alert alert-primary" role="alert">
+        Anda login sebagai perawat. Anda dapat mengupdate kondisi pasien di bawah ini.
+    </div>
+    <form method="POST" class="mb-4" id="conditionForm">
+        <div class="input-group">
+            <input type="text" name="condition" class="form-control shake-on-focus" placeholder="Masukkan kondisi terbaru" required>
+            <button type="submit" class="btn btn-success">Update Kondisi</button>
+        </div>
+    </form>
+    <form method="POST" class="mb-4">
+        <div class="input-group">
+            <select name="priority" class="form-control">
+                <option value="0" {% if patient[13] == 0 %}selected{% endif %}>Normal</option>
+                <option value="1" {% if patient[13] == 1 %}selected{% endif %}>Sedang</option>
+                <option value="2" {% if patient[13] == 2 %}selected{% endif %}>Tinggi</option>
+            </select>
+            <button type="submit" class="btn btn-warning">Update Prioritas</button>
+        </div>
+    </form>
+    <a href="{{ url_for('generate_report', patient_id=patient[0]) }}" class="btn btn-info mb-4">Unduh Laporan PDF</a>
+    <div class="card mb-3">
+        <div class="card-body" id="patient-info">
+            <h5 class="card-title">Informasi Pasien</h5>
+            <p><strong>Nama Lengkap:</strong> {{ patient[1] }}</p>
+            <p><strong>Key Akses:</strong> {{ patient[2] }}</p>
+            <p><strong>Kondisi Terakhir:</strong> {{ patient[3] if patient[3] else 'Belum ada kondisi terbaru' }}</p>
+            <p><strong>Terakhir Diperbarui:</strong> {{ patient[14] if patient[14] else '-' }}</p>
+            <p><strong>Prioritas:</strong> 
+                {% if patient[13] == 2 %}
+                    Tinggi
+                {% elif patient[13] == 1 %}
+                    Sedang
+                {% else %}
+                    Normal
+                {% endif %}
+            </p>
+            <p><strong>Nama Anggota Keluarga:</strong> {{ patient[4] if patient[4] else '-' }}</p>
+            <p><strong>Nomor Telepon:</strong> {{ patient[5] if patient[5] else '-' }}</p>
+            <p><strong>Nomor Telepon Darurat:</strong> {{ patient[6] if patient[6] else '-' }}</p>
+            <p><strong>No KTP:</strong> {{ patient[7] if patient[7] else '-' }}</p>
+            <p><strong>Alamat:</strong> {{ patient[8] if patient[8] else '-' }}</p>
+            <p><strong>Penanggung Jawab Ruangan:</strong> {{ patient[9] if patient[9] else '-' }}</p>
+            <p><strong>Nomor Penanggung Jawab Ruangan:</strong> {{ patient[10] if patient[10] else '-' }}</p>
+            <p><strong>Nama Dokter:</strong> {{ patient[11] if patient[11] else '-' }}</p>
+            <p><strong>Nomor Telepon Dokter:</strong> {{ patient[12] if patient[12] else '-' }}</p>
+            <p><strong>Alamat Rumah Sakit:</strong> {{ hospital[0] }}</p>
+            <p><strong>Nomor Telepon Rumah Sakit:</strong> {{ hospital[1] }}</p>
+        </div>
+    </div>
+    <h5>Riwayat Kondisi</h5>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover" id="history-table">
+            <thead class="table-dark">
+                <tr>
+                    <th>Kondisi</th>
+                    <th>Waktu</th>
+                </tr>
+            </thead>
+            <tbody id="history-table-body">
+                {% for entry in history %}
+                <tr>
+                    <td>{{ entry[0] }}</td>
+                    <td>{{ entry[1] }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2" class="text-center">Belum ada riwayat kondisi.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+    const socket = io();
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
+        socket.emit('request_patient_data', { patient_id: {{ patient[0] }} });
+    });
+    socket.on('patient_data_update', (data) => {
+        const patientInfo = document.getElementById('patient-info');
+        const priorityText = data.patient[13] === 2 ? 'Tinggi' : data.patient[13] === 1 ? 'Sedang' : 'Normal';
+        patientInfo.innerHTML = `
+            <h5 class="card-title">Informasi Pasien</h5>
+            <p><strong>Nama Lengkap:</strong> ${data.patient[1]}</p>
+            <p><strong>Key Akses:</strong> ${data.patient[2]}</p>
+            <p><strong>Kondisi Terakhir:</strong> ${data.patient[3] || 'Belum ada kondisi terbaru'}</p>
+            <p><strong>Terakhir Diperbarui:</strong> ${data.patient[14] || '-'}</p>
+            <p><strong>Prioritas:</strong> ${priorityText}</p>
+            <p><strong>Nama Anggota Keluarga:</strong> ${data.patient[4] || '-'}</p>
+            <p><strong>Nomor Telepon:</strong> ${data.patient[5] || '-'}</p>
+            <p><strong>Nomor Telepon Darurat:</strong> ${data.patient[6] || '-'}</p>
+            <p><strong>No KTP:</strong> ${data.patient[7] || '-'}</p>
+            <p><strong>Alamat:</strong> ${data.patient[8] || '-'}</p>
+            <p><strong>Penanggung Jawab Ruangan:</strong> ${data.patient[9] || '-'}</p>
+            <p><strong>Nomor Penanggung Jawab Ruangan:</strong> ${data.patient[10] || '-'}</p>
+            <p><strong>Nama Dokter:</strong> ${data.patient[11] || '-'}</p>
+            <p><strong>Nomor Telepon Dokter:</strong> ${data.patient[12] || '-'}</p>
+            <p><strong>Alamat Rumah Sakit:</strong> ${data.hospital[0]}</p>
+            <p><strong>Nomor Telepon Rumah Sakit:</strong> ${data.hospital[1]}</p>
+        `;
+        const historyTableBody = document.getElementById('history-table-body');
+        historyTableBody.innerHTML = '';
+        if (data.history.length === 0) {
+            historyTableBody.innerHTML = '<tr><td colspan="2" class="text-center">Belum ada riwayat kondisi.</td></tr>';
+        } else {
+            data.history.forEach(entry => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${entry[0]}</td>
+                    <td>${entry[1]}</td>
+                `;
+                historyTableBody.appendChild(row);
+            });
+        }
+        // Show notification
+        if (data.patient[3]) {
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success alert-dismissible fade show';
+            notification.innerHTML = `
+                Kondisi pasien diperbarui: ${data.patient[3]}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.querySelector('.container').prepend(notification);
+        }
+    });
+</script>
+{% endblock %}

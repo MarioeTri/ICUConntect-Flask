@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card shadow-lg p-4 nurse-view">
+    <h3 class="mb-4">Dashboard Perawat</h3>
+    
+    <!-- Hospital Details Form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Pengaturan Rumah Sakit</h5>
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="hospital_address" class="form-label">Alamat Rumah Sakit</label>
+                    <input type="text" name="hospital_address" id="hospital_address" class="form-control" placeholder="Masukkan alamat rumah sakit" value="{{ hospital[0] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="hospital_phone" class="form-label">Nomor Telepon Rumah Sakit</label>
+                    <input type="text" name="hospital_phone" id="hospital_phone" class="form-control shake-on-focus" placeholder="Masukkan nomor telepon rumah sakit (10-13 digit)" value="{{ hospital[1] }}">
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Perbarui Detail Rumah Sakit</button>
+            </form>
+        </div>
+    </div>
+
+    <form method="GET" class="mb-3">
+        <div class="input-group">
+            <input type="text" name="search" class="form-control" placeholder="Cari pasien..." value="{{ search_query }}">
+            <button type="submit" class="btn btn-outline-primary">Cari</button>
+        </div>
+    </form>
+    <button type="button" class="btn btn-success mb-4" id="toggleFormBtn">Tambah Pasien</button>
+
+    <!-- Collapsible Form Section -->
+    <div class="collapsible-form" id="addPatientFormSection" style="max-height: 0; overflow: hidden;">
+        <div class="form-wrapper">
+            <form method="POST" id="addPatientForm">
+                <div class="mb-3">
+                    <label for="patient_name" class="form-label">Nama Lengkap</label>
+                    <input type="text" name="patient_name" id="patient_name" class="form-control shake-on-focus" placeholder="Masukkan nama lengkap" required>
+                </div>
+                <div class="mb-3">
+                    <label for="family_member_name" class="form-label">Nama Anggota Keluarga</label>
+                    <input type="text" name="family_member_name" id="family_member_name" class="form-control shake-on-focus" placeholder="Masukkan nama anggota keluarga">
+                </div>
+                <div class="mb-3">
+                    <label for="phone_number" class="form-label">Nomor Telepon</label>
+                    <input type="text" name="phone_number" id="phone_number" class="form-control shake-on-focus" placeholder="Masukkan nomor telepon (10-13 digit)">
+                </div>
+                <div class="mb-3">
+                    <label for="emergency_phone_number" class="form-label">Nomor Telepon Darurat</label>
+                    <input type="text" name="emergency_phone_number" id="emergency_phone_number" class="form-control shake-on-focus" placeholder="Masukkan nomor telepon darurat (10-13 digit)">
+                </div>
+                <div class="mb-3">
+                    <label for="id_card_number" class="form-label">No KTP</label>
+                    <input type="text" name="id_card_number" id="id_card_number" class="form-control shake-on-focus" placeholder="Masukkan nomor KTP (16 digit)">
+                </div>
+                <div class="mb-3">
+                    <label for="address" class="form-label">Alamat</label>
+                    <textarea name="address" id="address" class="form-control shake-on-focus" placeholder="Masukkan alamat"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="room_responsible_person" class="form-label">Penanggung Jawab Ruangan</label>
+                    <input type="text" name="room_responsible_person" id="room_responsible_person" class="form-control shake-on-focus" placeholder="Masukkan nama penanggung jawab ruangan">
+                </div>
+                <div class="mb-3">
+                    <label for="room_responsible_phone" class="form-label">Nomor Penanggung Jawab Ruangan</label>
+                    <input type="text" name="room_responsible_phone" id="room_responsible_phone" class="form-control shake-on-focus" placeholder="Masukkan nomor penanggung jawab ruangan (10-13 digit)">
+                </div>
+                <div class="mb-3">
+                    <label for="doctor_name" class="form-label">Nama Dokter</label>
+                    <input type="text" name="doctor_name" id="doctor_name" class="form-control shake-on-focus" placeholder="Masukkan nama dokter">
+                </div>
+                <div class="mb-3">
+                    <label for="doctor_phone" class="form-label">Nomor Telepon Dokter</label>
+                    <input type="text" name="doctor_phone" id="doctor_phone" class="form-control shake-on-focus" placeholder="Masukkan nomor telepon dokter (10-13 digit)">
+                </div>
+                <div class="mb-3">
+                    <label for="priority" class="form-label">Prioritas Pasien</label>
+                    <select name="priority" id="priority" class="form-control">
+                        <option value="0">Normal</option>
+                        <option value="1">Sedang</option>
+                        <option value="2">Tinggi</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success w-100">Simpan Pasien</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Tren Kondisi Pasien</h5>
+            <canvas id="conditionChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered" id="patient-table">
+            <thead class="table-dark">
+                <tr>
+                    <th>Nama Pasien</th>
+                    <th>Key Akses</th>
+                    <th>Kondisi Terakhir</th>
+                    <th>Terakhir Diperbarui</th>
+                    <th>Prioritas</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="patient-table-body">
+                {% for p in patients %}
+                <tr class="{% if p[4] == 2 %}table-danger{% elif p[4] == 1 %}table-warning{% endif %}">
+                    <td>{{ p[1] }}</td>
+                    <td>{{ p[2] }}</td>
+                    <td>{{ p[3] if p[3] else '-' }}</td>
+                    <td>{{ p[5] if p[5] else '-' }}</td>
+                    <td>
+                        {% if p[4] == 2 %}
+                            Tinggi
+                        {% elif p[4] == 1 %}
+                            Sedang
+                        {% else %}
+                            Normal
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('patient_detail', patient_id=p[0]) }}" class="btn btn-primary btn-sm">Update</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">Belum ada pasien.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // Toggle collapsible form
+    document.getElementById('toggleFormBtn').addEventListener('click', function () {
+        const formSection = document.getElementById('addPatientFormSection');
+        const formWrapper = document.querySelector('.form-wrapper');
+        if (formSection.style.maxHeight === '0px' || formSection.style.maxHeight === '') {
+            formSection.style.display = 'block';
+            const fullHeight = formWrapper.scrollHeight + 20;
+            setTimeout(() => {
+                formSection.style.maxHeight = fullHeight + 'px';
+                formSection.classList.add('active');
+                document.getElementById('patient_name').focus();
+            }, 10);
+        } else {
+            formSection.classList.remove('active');
+            setTimeout(() => {
+                formSection.style.maxHeight = '0';
+                setTimeout(() => {
+                    formSection.style.display = 'none';
+                }, 300);
+            }, 10);
+        }
+    });
+
+    // WebSocket connection
+    const socket = io();
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
+        socket.emit('request_patient_list');
+    });
+    socket.on('patient_list_update', (data) => {
+        const tableBody = document.getElementById('patient-table-body');
+        tableBody.innerHTML = '';
+        if (data.patients.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Belum ada pasien.</td></tr>';
+        } else {
+            data.patients.forEach(patient => {
+                const priorityText = patient[3] === 2 ? 'Tinggi' : patient[3] === 1 ? 'Sedang' : 'Normal';
+                const rowClass = patient[3] === 2 ? 'table-danger' : patient[3] === 1 ? 'table-warning' : '';
+                const row = document.createElement('tr');
+                row.className = rowClass;
+                row.innerHTML = `
+                    <td>${patient[1]}</td>
+                    <td>${patient[2] || '-'}</td>
+                    <td>${patient[2] || '-'}</td>
+                    <td>${patient[4] || '-'}</td>
+                    <td>${priorityText}</td>
+                    <td><a href="/patient/${patient[0]}" class="btn btn-primary btn-sm">Update</a></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        // Update chart
+        updateConditionChart(data.patients);
+    });
+
+    function updateConditionChart(patients) {
+        const ctx = document.getElementById('conditionChart').getContext('2d');
+        const labels = patients.map(p => p[1]);
+        const priorities = patients.map(p => p[3]);
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Prioritas Pasien',
+                    data: priorities,
+                    backgroundColor: priorities.map(p => p === 2 ? '#dc3545' : p === 1 ? '#ffc107' : '#28a745'),
+                    borderColor: priorities.map(p => p === 2 ? '#c82333' : p === 1 ? '#e0a800' : '#218838'),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 2,
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                return value === 2 ? 'Tinggi' : value === 1 ? 'Sedang' : 'Normal';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

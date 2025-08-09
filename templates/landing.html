@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card shadow-lg p-4">
+    <h3 class="mb-4">Daftar Pasien yang Diupdate</h3>
+    <div class="list-group" id="patient-list">
+        {% for patient in patients %}
+        <a class="list-group-item list-group-item-action hover-effect" href="{{ url_for('access_patient', patient_id=patient[0]) }}">
+            {{ patient[1] }} (Terakhir Diperbarui: {{ patient[4] if patient[4] else '-' }})
+        </a>
+        {% else %}
+        <p class="text-muted">Belum ada pasien yang diupdate.</p>
+        {% endfor %}
+    </div>
+</div>
+<script>
+    const socket = io();
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
+        socket.emit('request_patient_list');
+    });
+    socket.on('patient_list_update', (data) => {
+        const patientList = document.getElementById('patient-list');
+        patientList.innerHTML = '';
+        if (data.patients.length === 0) {
+            patientList.innerHTML = '<p class="text-muted">Belum ada pasien yang diupdate.</p>';
+        } else {
+            data.patients.forEach(patient => {
+                const item = document.createElement('a');
+                item.className = 'list-group-item list-group-item-action hover-effect';
+                item.href = `/access/${patient[0]}`;
+                item.textContent = `${patient[1]} (Terakhir Diperbarui: ${patient[4] || '-'})`;
+                patientList.appendChild(item);
+            });
+        }
+    });
+</script>
+{% endblock %}
