@@ -86,13 +86,6 @@
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5 class="card-title">Tren Kondisi Pasien</h5>
-            <canvas id="conditionChart" height="100"></canvas>
-        </div>
-    </div>
-
     <div class="table-responsive">
         <table class="table table-hover table-bordered" id="patient-table">
             <thead class="table-dark">
@@ -135,7 +128,6 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     // Toggle collapsible form
     document.getElementById('toggleFormBtn').addEventListener('click', function () {
@@ -188,46 +180,6 @@
                 tableBody.appendChild(row);
             });
         }
-        // Update chart
-        updateConditionChart(data.patients);
     });
-
-    function updateConditionChart(patients) {
-        const ctx = document.getElementById('conditionChart').getContext('2d');
-        const labels = patients.map(p => p[1]);
-        const priorities = patients.map(p => p[3]);
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Prioritas Pasien',
-                    data: priorities,
-                    backgroundColor: priorities.map(p => p === 2 ? '#dc3545' : p === 1 ? '#ffc107' : '#28a745'),
-                    borderColor: priorities.map(p => p === 2 ? '#c82333' : p === 1 ? '#e0a800' : '#218838'),
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 2,
-                        ticks: {
-                            stepSize: 1,
-                            callback: function(value) {
-                                return value === 2 ? 'Tinggi' : value === 1 ? 'Sedang' : 'Normal';
-                            }
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-    }
 </script>
 {% endblock %}

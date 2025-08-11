@@ -6,6 +6,9 @@ import bcrypt
 import datetime
 import re
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
@@ -25,6 +28,13 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL
+                )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS pending_nurse (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    token TEXT NOT NULL,
+                    created_at TEXT NOT NULL
                 )''')
     c.execute('''CREATE TABLE IF NOT EXISTS patient (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,13 +65,52 @@ def init_db():
                     address TEXT NOT NULL,
                     phone_number TEXT NOT NULL
                 )''')
-    # Insert default hospital details if not exists
     c.execute("INSERT OR IGNORE INTO hospital (id, address, phone_number) VALUES (?, ?, ?)", 
               (1, "Jl. Kesehatan No. 88, Jakarta", "+622112345678"))
     conn.commit()
     conn.close()
 
 init_db()
+
+# --- EMAIL CONFIGURATION ---
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_USERNAME = "yha76851@gmail.com"  # Replace with your email
+SMTP_PASSWORD = "miiarxcdxyywvpqv"      # Replace with your app-specific password
+DOCTOR_EMAIL = "yha76851@gmail.com"
+
+def send_confirmation_email(username, token):
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_USERNAME
+    msg['To'] = DOCTOR_EMAIL
+    msg['Subject'] = "Konfirmasi Registrasi Perawat"
+
+    confirmation_url = url_for('confirm_registration', token=token, _external=True)
+    body = f"""
+    Halo Dokter,
+
+    Perawat dengan username '{username}' telah meminta registrasi. 
+    Silakan konfirmasi registrasi dengan mengklik link berikut:
+    {confirmation_url}
+
+    Jika Anda tidak mengenali permintaan ini, abaikan email ini.
+    Link ini valid selama 24 jam.
+
+    Terima kasih,
+    Tim Rumah Sakit Sehat Selalu
+    """
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.sendmail(SMTP_USERNAME, DOCTOR_EMAIL, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
 
 # --- WEBSOCKET EVENTS ---
 @socketio.on('connect')
@@ -119,7 +168,6 @@ def generate_pdf_report(patient, history, hospital):
 
     elements = []
 
-    # --- Logo Rumah Sakit ---
     try:
         logo = Image("Assets/Hospital.png", width=1.5*inch, height=1.5*inch)
         logo.hAlign = 'CENTER'
@@ -127,18 +175,14 @@ def generate_pdf_report(patient, history, hospital):
     except:
         elements.append(Paragraph("<b>RUMAH SAKIT SEHAT SELALU</b>", title_style))
 
-    # --- Judul Laporan ---
     elements.append(Paragraph("LAPORAN MEDIS PASIEN", title_style))
     elements.append(Paragraph(f"{hospital[0]}<br/>{hospital[1]}<br/><br/>", subtitle_style))
-
-    # --- Deskripsi Pembuka ---
     elements.append(Paragraph("""
     Dengan hormat,<br/><br/>
     Dokumen ini merupakan laporan resmi yang disusun oleh tim medis Rumah Sakit Sehat Selalu sebagai bentuk pertanggungjawaban terhadap layanan dan penanganan medis yang telah diberikan kepada pasien berikut. Semua informasi yang tercantum bersumber dari pencatatan selama proses observasi dan perawatan.
     """, justify_style))
     elements.append(Spacer(1, 20))
 
-    # --- Informasi Identitas Pasien ---
     data_pasien = [
         ["Nama Pasien", patient[1]],
         ["Key Akses", patient[2]],
@@ -162,7 +206,6 @@ def generate_pdf_report(patient, history, hospital):
     elements.append(table)
     elements.append(Spacer(1, 20))
 
-    # --- Riwayat Kondisi Pasien ---
     elements.append(Paragraph("Riwayat Kondisi Pasien", styles['Heading2']))
     if history:
         riwayat_data = [["Tanggal & Waktu", "Kondisi"]] + history
@@ -177,8 +220,6 @@ def generate_pdf_report(patient, history, hospital):
         elements.append(Paragraph("Belum terdapat riwayat kondisi yang tercatat dalam sistem.", normal_style))
 
     elements.append(Spacer(1, 30))
-
-    # --- Penutup ---
     current_date = datetime.datetime.now().strftime('%d %B %Y')
     elements.append(Paragraph(f"""
     Demikian laporan ini kami sampaikan untuk digunakan sebagaimana mestinya. Kami menyatakan bahwa informasi dalam laporan ini benar dan telah diverifikasi oleh pihak yang berwenang.<br/><br/>
@@ -218,19 +259,73 @@ def register():
             flash("Password harus minimal 6 karakter!", "danger")
             return render_template('register.html')
 
+        conn = sqlite3.connect('database.db')
+        c = conn.cursor()
         try:
+            # Check if username exists in nurse or pending_nurse
+            c.execute("SELECT username FROM nurse WHERE username=?", (username,))
+            if c.fetchone():
+                flash("Username sudah digunakan!", "danger")
+                conn.close()
+                return render_template('register.html')
+            c.execute("SELECT username FROM pending_nurse WHERE username=?", (username,))
+            if c.fetchone():
+                flash("Username ini sedang menunggu konfirmasi dokter!", "warning")
+                conn.close()
+                return render_template('register.html')
+
+            # Store in pending_nurse with a unique token
             hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            conn = sqlite3.connect('database.db')
-            c = conn.cursor()
-            c.execute("INSERT INTO nurse (username, password) VALUES (?, ?)", (username, hashed_password))
+            token = secrets.token_urlsafe(32)
+            created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            c.execute("INSERT INTO pending_nurse (username, password, token, created_at) VALUES (?, ?, ?, ?)",
+                      (username, hashed_password, token, created_at))
             conn.commit()
-            flash("Registrasi berhasil! Silakan login.", "success")
+            conn.close()
+
+            # Send confirmation email
+            if send_confirmation_email(username, token):
+                flash("Permintaan registrasi telah dikirim ke dokter untuk konfirmasi. Silakan tunggu persetujuan.", "info")
+            else:
+                flash("Gagal mengirim email konfirmasi. Silakan coba lagi nanti.", "danger")
             return redirect(url_for('login'))
         except sqlite3.IntegrityError:
-            flash("Username sudah digunakan!", "danger")
-        finally:
+            flash("Terjadi kesalahan, silakan coba lagi.", "danger")
             conn.close()
     return render_template('register.html')
+
+@app.route('/confirm/<token>', methods=['GET'])
+def confirm_registration(token):
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute("SELECT username, password, created_at FROM pending_nurse WHERE token=?", (token,))
+    pending = c.fetchone()
+
+    if not pending:
+        flash("Token konfirmasi tidak valid atau telah kedaluwarsa!", "danger")
+        conn.close()
+        return redirect(url_for('login'))
+
+    # Check if token is within 24 hours
+    created_at = datetime.datetime.strptime(pending[2], "%Y-%m-%d %H:%M:%S")
+    if (datetime.datetime.now() - created_at).total_seconds() > 24 * 3600:
+        c.execute("DELETE FROM pending_nurse WHERE token=?", (token,))
+        conn.commit()
+        flash("Token konfirmasi telah kedaluwarsa!", "danger")
+        conn.close()
+        return redirect(url_for('login'))
+
+    # Move to nurse table
+    try:
+        c.execute("INSERT INTO nurse (username, password) VALUES (?, ?)", (pending[0], pending[1]))
+        c.execute("DELETE FROM pending_nurse WHERE token=?", (token,))
+        conn.commit()
+        flash(f"Registrasi untuk {pending[0]} telah disetujui!", "success")
+    except sqlite3.IntegrityError:
+        flash("Username sudah digunakan!", "danger")
+    finally:
+        conn.close()
+    return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -269,7 +364,6 @@ def nurse_dashboard():
     conn = sqlite3.connect('database.db')
     c = conn.cursor()
     
-    # Handle hospital details update
     if request.method == 'POST' and 'hospital_address' in request.form:
         hospital_address = request.form['hospital_address'].strip()
         hospital_phone = request.form['hospital_phone'].strip()
@@ -282,7 +376,6 @@ def nurse_dashboard():
             conn.commit()
             flash("Detail rumah sakit diperbarui!", "success")
 
-    # Handle patient addition
     elif request.method == 'POST' and 'patient_name' in request.form:
         patient_name = request.form['patient_name'].strip()
         family_member_name = request.form['family_member_name'].strip()
@@ -325,11 +418,9 @@ def nurse_dashboard():
             patients = c.fetchall()
             socketio.emit('patient_list_update', {'patients': patients})
 
-    # Fetch hospital details
     c.execute("SELECT address, phone_number FROM hospital WHERE id=1")
     hospital = c.fetchone()
 
-    # Fetch patients
     search_query = request.args.get('search', '').strip()
     query = "SELECT id, name, access_key, condition, priority, last_updated FROM patient"
     params = ()
@@ -373,7 +464,7 @@ def patient_detail(patient_id):
                     'history': history,
                     'hospital': hospital
                 })
-                if patient[6]:  # Notify emergency contact
+                if patient[6]:
                     flash(f"Notifikasi pembaruan kondisi dikirim ke: {patient[6]}", "info")
         elif 'priority' in request.form:
             priority = int(request.form['priority'])
