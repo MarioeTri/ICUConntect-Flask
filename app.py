@@ -80,26 +80,74 @@ SMTP_PASSWORD = "miiarxcdxyywvpqv"      # Replace with your app-specific passwor
 DOCTOR_EMAIL = "yha76851@gmail.com"
 
 def send_confirmation_email(username, token):
-    msg = MIMEMultipart()
+    msg = MIMEMultipart('alternative')
     msg['From'] = SMTP_USERNAME
     msg['To'] = DOCTOR_EMAIL
-    msg['Subject'] = "Konfirmasi Registrasi Perawat"
+    msg['Subject'] = "Konfirmasi Registrasi Perawat - Rumah Sakit Sehat Selalu"
 
+    # Plain text version (fallback)
     confirmation_url = url_for('confirm_registration', token=token, _external=True)
-    body = f"""
-    Halo Dokter,
+    text_body = f"""
+Halo Dokter,
 
-    Perawat dengan username '{username}' telah meminta registrasi. 
-    Silakan konfirmasi registrasi dengan mengklik link berikut:
-    {confirmation_url}
+Perawat dengan username '{username}' telah meminta registrasi. 
+Silakan konfirmasi registrasi dengan mengklik link berikut:
+{confirmation_url}
 
-    Jika Anda tidak mengenali permintaan ini, abaikan email ini.
-    Link ini valid selama 24 jam.
+Jika Anda tidak mengenali permintaan ini, abaikan email ini.
+Link ini valid selama 24 jam.
 
-    Terima kasih,
-    Tim Rumah Sakit Sehat Selalu
+Terima kasih,
+Tim Rumah Sakit Sehat Selalu
     """
-    msg.attach(MIMEText(body, 'plain'))
+
+    # HTML version
+    html_body = f"""
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konfirmasi Registrasi Perawat</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f4;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 20px auto;">
+        <tr>
+            <td style="background-color: #007bff; padding: 20px; text-align: center; border-top-left-radius: 8px; border-top-right-radius: 8px;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Rumah Sakit Sehat Selalu</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 30px 20px; text-align: center;">
+                <h2 style="color: #333333; font-size: 20px; margin-bottom: 20px;">Konfirmasi Registrasi Perawat</h2>
+                <p style="color: #555555; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
+                    Halo Dokter,<br><br>
+                    Perawat dengan username <strong>{username}</strong> telah mengajukan permintaan registrasi untuk mengakses sistem monitoring pasien. 
+                    Silakan konfirmasi registrasi ini dengan mengklik tombol di bawah ini.
+                </p>
+                <a href="{confirmation_url}" style="display: inline-block; background-color: #007bff; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; margin: 20px 0;">
+                    Konfirmasi Registrasi
+                </a>
+                <p style="color: #555555; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
+                    Jika Anda tidak mengenali permintaan ini, silakan abaikan email ini. Link konfirmasi ini hanya valid selama <strong>24 jam</strong>.
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td style="background-color: #f8f9fa; padding: 15px; text-align: center; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
+                <p style="color: #777777; font-size: 12px; margin: 0;">
+                    &copy; {datetime.datetime.now().year} Rumah Sakit Sehat Selalu. Semua hak dilindungi.<br>
+                    Jl. Kesehatan No. 88, Jakarta | +622112345678
+                </p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    """
+
+    msg.attach(MIMEText(text_body, 'plain'))
+    msg.attach(MIMEText(html_body, 'html'))
 
     try:
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -262,7 +310,6 @@ def register():
         conn = sqlite3.connect('database.db')
         c = conn.cursor()
         try:
-            # Check if username exists in nurse or pending_nurse
             c.execute("SELECT username FROM nurse WHERE username=?", (username,))
             if c.fetchone():
                 flash("Username sudah digunakan!", "danger")
@@ -274,7 +321,6 @@ def register():
                 conn.close()
                 return render_template('register.html')
 
-            # Store in pending_nurse with a unique token
             hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             token = secrets.token_urlsafe(32)
             created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -283,7 +329,6 @@ def register():
             conn.commit()
             conn.close()
 
-            # Send confirmation email
             if send_confirmation_email(username, token):
                 flash("Permintaan registrasi telah dikirim ke dokter untuk konfirmasi. Silakan tunggu persetujuan.", "info")
             else:
@@ -306,7 +351,6 @@ def confirm_registration(token):
         conn.close()
         return redirect(url_for('login'))
 
-    # Check if token is within 24 hours
     created_at = datetime.datetime.strptime(pending[2], "%Y-%m-%d %H:%M:%S")
     if (datetime.datetime.now() - created_at).total_seconds() > 24 * 3600:
         c.execute("DELETE FROM pending_nurse WHERE token=?", (token,))
@@ -315,7 +359,6 @@ def confirm_registration(token):
         conn.close()
         return redirect(url_for('login'))
 
-    # Move to nurse table
     try:
         c.execute("INSERT INTO nurse (username, password) VALUES (?, ?)", (pending[0], pending[1]))
         c.execute("DELETE FROM pending_nurse WHERE token=?", (token,))
@@ -423,7 +466,7 @@ def nurse_dashboard():
 
     search_query = request.args.get('search', '').strip()
     query = "SELECT id, name, access_key, condition, priority, last_updated FROM patient"
-    params = ()
+    params = ""
     if search_query:
         query += " WHERE name LIKE ?"
         params = ('%' + search_query + '%',)
