@@ -33,5 +33,16 @@
             });
         }
     });
+    socket.on('patient_deleted', (data) => {
+        const items = document.querySelectorAll('#patient-list a');
+        items.forEach(item => {
+            if (item.href.endsWith(`/access/${data.patient_id}`)) {
+                item.remove();
+            }
+        });
+        if (document.querySelectorAll('#patient-list a').length === 0) {
+            document.getElementById('patient-list').innerHTML = '<p class="text-muted">Belum ada pasien yang diupdate.</p>';
+        }
+    });
 </script>
 {% endblock %}

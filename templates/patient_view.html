@@ -75,5 +75,11 @@
             });
         }
     });
+    socket.on('patient_deleted', (data) => {
+        if (data.patient_id === {{ patient[0] }}) {
+            alert('Pasien ini telah dihapus oleh perawat.');
+            window.location.href = '{{ url_for("landing") }}';
+        }
+    });
 </script>
 {% endblock %}

@@ -185,17 +185,20 @@ def handle_patient_data_request(data):
     c = conn.cursor()
     c.execute("SELECT * FROM patient WHERE id=?", (patient_id,))
     patient = c.fetchone()
+    if not patient:
+        socketio.emit('patient_deleted', {'patient_id': patient_id})
+        conn.close()
+        return
     c.execute("SELECT condition, timestamp FROM condition_history WHERE patient_id=? ORDER BY timestamp DESC", (patient_id,))
     history = c.fetchall()
     c.execute("SELECT address, phone_number FROM hospital WHERE id=1")
     hospital = c.fetchone()
     conn.close()
-    if patient:
-        socketio.emit('patient_data_update', {
-            'patient': patient,
-            'history': history,
-            'hospital': hospital
-        })
+    socketio.emit('patient_data_update', {
+        'patient': patient,
+        'history': history,
+        'hospital': hospital
+    })
 
 # --- HELPER FUNCTIONS ---
 def validate_phone(phone):
@@ -466,7 +469,7 @@ def nurse_dashboard():
 
     search_query = request.args.get('search', '').strip()
     query = "SELECT id, name, access_key, condition, priority, last_updated FROM patient"
-    params = ""
+    params = ()
     if search_query:
         query += " WHERE name LIKE ?"
         params = ('%' + search_query + '%',)
@@ -532,6 +535,40 @@ def patient_detail(patient_id):
 
     return render_template('patient_detail.html', patient=patient, history=history, hospital=hospital)
 
+@app.route('/patient/<int:patient_id>/delete', methods=['POST'])
+def delete_patient(patient_id):
+    if 'nurse' not in session:
+        flash("Hanya perawat yang dapat menghapus pasien!", "warning")
+        return redirect(url_for('login'))
+
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM patient WHERE id=?", (patient_id,))
+    patient = c.fetchone()
+    if not patient:
+        flash("Pasien tidak ditemukan!", "danger")
+        conn.close()
+        return redirect(url_for('nurse_dashboard'))
+
+    try:
+        c.execute("DELETE FROM condition_history WHERE patient_id=?", (patient_id,))
+        c.execute("DELETE FROM patient WHERE id=?", (patient_id,))
+        conn.commit()
+        flash(f"Pasien {patient[1]} berhasil dihapus!", "success")
+        socketio.emit('patient_deleted', {'patient_id': patient_id})
+        c.execute("SELECT id, name, condition, priority, last_updated FROM patient WHERE condition != '' ORDER BY priority DESC, id DESC")
+        patients = c.fetchall()
+        socketio.emit('patient_list_update', {'patients': patients})
+    except Exception as e:
+        flash("Terjadi kesalahan saat menghapus pasien!", "danger")
+    finally:
+        conn.close()
+
+    if 'access_patient_id' in session and session['access_patient_id'] == patient_id:
+        session.pop('access_patient_id', None)
+
+    return redirect(url_for('nurse_dashboard'))
+
 @app.route('/patient/<int:patient_id>/report')
 def generate_report(patient_id):
     if 'nurse' not in session:
@@ -590,15 +627,15 @@ def patient_view(patient_id):
     c = conn.cursor()
     c.execute("SELECT * FROM patient WHERE id=?", (patient_id,))
     patient = c.fetchone()
+    if not patient:
+        flash("Pasien tidak ditemukan!", "danger")
+        conn.close()
+        return redirect(url_for('landing'))
     c.execute("SELECT condition, timestamp FROM condition_history WHERE patient_id=? ORDER BY timestamp DESC", (patient_id,))
     history = c.fetchall()
     c.execute("SELECT address, phone_number FROM hospital WHERE id=1")
     hospital = c.fetchone()
     conn.close()
-
-    if not patient:
-        flash("Pasien tidak ditemukan!", "danger")
-        return redirect(url_for('landing'))
 
     return render_template('patient_view.html', patient=patient, history=history, hospital=hospital)
 

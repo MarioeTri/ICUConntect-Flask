@@ -21,7 +21,10 @@
             <button type="submit" class="btn btn-warning">Update Prioritas</button>
         </div>
     </form>
-    <a href="{{ url_for('generate_report', patient_id=patient[0]) }}" class="btn btn-info mb-4">Unduh Laporan PDF</a>
+    <a href="{{ url_for('generate_report', patient_id=patient[0]) }}" class="btn btn-info mb-2">Unduh Laporan PDF</a>
+    <form action="{{ url_for('delete_patient', patient_id=patient[0]) }}" method="POST" style="display:inline;">
+        <button type="submit" class="btn btn-danger mb-4" onclick="return confirm('Apakah Anda yakin ingin menghapus pasien ini?');">Hapus Pasien</button>
+    </form>
     <div class="card mb-3">
         <div class="card-body" id="patient-info">
             <h5 class="card-title">Informasi Pasien</h5>
@@ -126,6 +129,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             `;
             document.querySelector('.container').prepend(notification);
+        }
+    });
+    socket.on('patient_deleted', (data) => {
+        if (data.patient_id === {{ patient[0] }}) {
+            alert('Pasien ini telah dihapus oleh perawat.');
+            window.location.href = '{{ url_for("nurse_dashboard") }}';
         }
     });
 </script>

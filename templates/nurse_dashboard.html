@@ -100,7 +100,7 @@
             </thead>
             <tbody id="patient-table-body">
                 {% for p in patients %}
-                <tr class="{% if p[4] == 2 %}table-danger{% elif p[4] == 1 %}table-warning{% endif %}">
+                <tr class="{% if p[4] == 2 %}table-danger{% elif p[4] == 1 %}table-warning{% endif %}" data-patient-id="{{ p[0] }}">
                     <td>{{ p[1] }}</td>
                     <td>{{ p[2] }}</td>
                     <td>{{ p[3] if p[3] else '-' }}</td>
@@ -116,6 +116,9 @@
                     </td>
                     <td>
                         <a href="{{ url_for('patient_detail', patient_id=p[0]) }}" class="btn btn-primary btn-sm">Update</a>
+                        <form action="{{ url_for('delete_patient', patient_id=p[0]) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus pasien ini?');">Hapus</button>
+                        </form>
                     </td>
                 </tr>
                 {% else %}
@@ -169,16 +172,31 @@
                 const rowClass = patient[3] === 2 ? 'table-danger' : patient[3] === 1 ? 'table-warning' : '';
                 const row = document.createElement('tr');
                 row.className = rowClass;
+                row.setAttribute('data-patient-id', patient[0]);
                 row.innerHTML = `
                     <td>${patient[1]}</td>
-                    <td>${patient[2] || '-'}</td>
+                    <td>${patient[2]}</td>
                     <td>${patient[2] || '-'}</td>
                     <td>${patient[4] || '-'}</td>
                     <td>${priorityText}</td>
-                    <td><a href="/patient/${patient[0]}" class="btn btn-primary btn-sm">Update</a></td>
+                    <td>
+                        <a href="/patient/${patient[0]}" class="btn btn-primary btn-sm">Update</a>
+                        <form action="/patient/${patient[0]}/delete" method="POST" style="display:inline;">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus pasien ini?');">Hapus</button>
+                        </form>
+                    </td>
                 `;
                 tableBody.appendChild(row);
             });
+        }
+    });
+    socket.on('patient_deleted', (data) => {
+        const row = document.querySelector(`tr[data-patient-id="${data.patient_id}"]`);
+        if (row) {
+            row.remove();
+        }
+        if (document.querySelectorAll('#patient-table-body tr').length === 0) {
+            document.getElementById('patient-table-body').innerHTML = '<tr><td colspan="6" class="text-center">Belum ada pasien.</td></tr>';
         }
     });
 </script>
